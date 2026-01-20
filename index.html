@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Map-Fortschritt SB_MAP</title>
+    <title>Map-Fortschritt Staufen</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css"/>
@@ -10,7 +10,16 @@
 </head>
 <body>
 
-<h2>Map-Fortschritt SB_MAP</h2>
+<h2>Map-Fortschritt Staufen</h2>
+
+<!-- Mini-Statistik -->
+<div id="stats">
+    🟩 <span id="stat-fertig">0</span>
+    🟨 <span id="stat-bau">0</span>
+    🟥 <span id="stat-geplant">0</span>
+    📍 <span id="stat-marker">0</span>
+</div>
+
 <div id="progress">0 % umgesetzt</div>
 
 <div id="legend">
@@ -18,14 +27,17 @@
     <span class="bau">Im Bau</span>
     <span class="geplant">Geplant</span>
 
-    <label style="margin-left:15px;">
+    <label>
         <input type="checkbox" id="toggleMarkers" checked>
         Geplante Orte anzeigen
     </label>
 </div>
 
 <button id="adminButton">Admin Login</button>
-<button id="syncButton" style="display:none;">🔄 Mit GitHub synchronisieren</button>
+<button id="syncButton" style="display:none;">🔄 Synchronisieren</button>
+
+<h3>🚧 Was kommt als Nächstes?</h3>
+<ul id="nextList"></ul>
 
 <div id="map"></div>
 
@@ -36,4 +48,3 @@
 
 </body>
 </html>
-
