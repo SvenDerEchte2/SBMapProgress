@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Map-Fortschritt Staufen</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css"/>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h2>Map-Fortschritt Staufen</h2>
+<div id="progress">0 % umgesetzt</div>
+
+<div id="legend">
+    <span class="fertig">Fertig</span>
+    <span class="bau">Im Bau</span>
+    <span class="geplant">Geplant</span>
+
+    <label style="margin-left:15px;">
+        <input type="checkbox" id="toggleMarkers" checked>
+        Geplante Orte anzeigen
+    </label>
+</div>
+
+<button id="adminButton">Admin Login</button>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+<script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>
