@@ -1,25 +1,22 @@
-// ---------------------------
+// ===========================
 // Konfiguration
-// ---------------------------
-const ADMIN_PASSWORT = "meinpasswort"; // ändere hier
+// ===========================
+const ADMIN_PASSWORT = "meinpasswort";
 let isAdmin = false;
 
-// Karte starten in Staufen im Breisgau
+// ===========================
+// Karte
+// ===========================
 const map = L.map('map').setView([47.8846, 7.7323], 14);
 
-// OpenStreetMap Layer
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap'
 }).addTo(map);
 
-// Layer für Polygone & Marker
-const builtLayer = new L.FeatureGroup();
-map.addLayer(builtLayer);
+const builtLayer = new L.FeatureGroup().addTo(map);
+const markerLayer = new L.FeatureGroup().addTo(map);
 
-const markerLayer = new L.FeatureGroup();
-map.addLayer(markerLayer);
-
-// Gesamtfläche (Beispiel-Rechteck um Staufen)
+// Beispiel-Gesamtfläche
 const totalArea = turf.polygon([[
     [7.72, 47.88],
     [7.74, 47.88],
@@ -28,159 +25,167 @@ const totalArea = turf.polygon([[
     [7.72, 47.88]
 ]]);
 
-// ---------------------------
-// Admin Button
-// ---------------------------
-document.getElementById("adminButton").addEventListener("click", () => {
-    const pw = prompt("Admin Passwort eingeben:");
+// ===========================
+// Admin Login
+// ===========================
+document.getElementById("adminButton").onclick = () => {
+    const pw = prompt("Admin Passwort:");
     if (pw === ADMIN_PASSWORT) {
         isAdmin = true;
-        alert("Admin aktiviert! Du kannst jetzt zeichnen.");
-        enableDrawTools();
+        alert("Admin aktiviert");
+        document.getElementById("syncButton").style.display = "inline";
+        enableDraw();
     } else {
         alert("Falsches Passwort");
     }
-});
+};
 
-// ---------------------------
-// Zeichentools aktivieren
-// ---------------------------
-function enableDrawTools() {
-    const drawControl = new L.Control.Draw({
+// ===========================
+// Draw Tools
+// ===========================
+function enableDraw() {
+    const draw = new L.Control.Draw({
         edit: { featureGroup: builtLayer },
         draw: {
             polygon: true,
             rectangle: true,
             marker: true,
-            circle: false,
-            polyline: false
+            polyline: false,
+            circle: false
         }
     });
-    map.addControl(drawControl);
+    map.addControl(draw);
 }
 
-// ---------------------------
-// Farbwahl
-// ---------------------------
+// ===========================
+// Farben
+// ===========================
 function getColor(status) {
     if (status === "fertig") return "green";
     if (status === "bau") return "orange";
-    return "red"; // geplant
+    return "red";
 }
 
-// ---------------------------
-// Polygon oder Marker erstellen
-// ---------------------------
-map.on(L.Draw.Event.CREATED, function (event) {
+// ===========================
+// Zeichnen
+// ===========================
+map.on(L.Draw.Event.CREATED, e => {
     if (!isAdmin) return;
 
-    const layer = event.layer;
+    const layer = e.layer;
 
-    if (event.layerType === 'marker') {
+    if (e.layerType === "marker") {
         const name = prompt("Name des geplanten Ortes?");
         layer.bindPopup("🟥 Geplant: " + name);
         markerLayer.addLayer(layer);
-        saveData();
+        saveLocal();
         return;
     }
 
-    // Polygon
     const status = prompt("Status: fertig / bau / geplant", "fertig");
     layer.status = status;
     layer.setStyle({ color: getColor(status), fillOpacity: 0.5 });
     builtLayer.addLayer(layer);
 
-    saveData();
+    saveLocal();
     updateProgress();
 });
 
-// ---------------------------
-// Fortschritt berechnen
-// ---------------------------
+// ===========================
+// Fortschritt
+// ===========================
 function updateProgress() {
-    let builtArea = 0;
-
-    builtLayer.eachLayer(layer => {
-        if (layer.status === "fertig") {
-            builtArea += turf.area(layer.toGeoJSON());
+    let area = 0;
+    builtLayer.eachLayer(l => {
+        if (l.status === "fertig") {
+            area += turf.area(l.toGeoJSON());
         }
     });
-
-    const percent = ((builtArea / turf.area(totalArea)) * 100).toFixed(2);
-    document.getElementById("progress").innerText =
-        percent + " % umgesetzt";
+    const percent = ((area / turf.area(totalArea)) * 100).toFixed(2);
+    document.getElementById("progress").innerText = percent + " % umgesetzt";
 }
 
-// ---------------------------
-// Marker ein/ausblenden
-// ---------------------------
-document.getElementById("toggleMarkers").addEventListener("change", function () {
-    if (this.checked) {
-        map.addLayer(markerLayer);
-    } else {
-        map.removeLayer(markerLayer);
-    }
-});
+// ===========================
+// Marker Toggle
+// ===========================
+document.getElementById("toggleMarkers").onchange = e => {
+    e.target.checked ? map.addLayer(markerLayer) : map.removeLayer(markerLayer);
+};
 
-// ---------------------------
-// Speichern in LocalStorage
-// ---------------------------
-function saveData() {
-    if (!isAdmin) return;
-
-    const data = {
-        areas: [],
-        markers: []
-    };
-
-    builtLayer.eachLayer(layer => {
-        data.areas.push({
-            geo: layer.toGeoJSON(),
-            status: layer.status
-        });
-    });
-
-    markerLayer.eachLayer(layer => {
-        data.markers.push({
-            geo: layer.toGeoJSON()
-        });
-    });
-
+// ===========================
+// LocalStorage
+// ===========================
+function saveLocal() {
+    const data = collectData();
     localStorage.setItem("mapData", JSON.stringify(data));
 }
 
-// ---------------------------
-// Laden
-// ---------------------------
-function loadData() {
-    // 1. Aus LocalStorage (Admin)
-    const savedLS = JSON.parse(localStorage.getItem("mapData"));
-    if (savedLS) loadFromData(savedLS);
+// ===========================
+// 🔄 SYNC BUTTON (EXPORT)
+// ===========================
+document.getElementById("syncButton").onclick = () => {
+    const data = collectData();
+    const blob = new Blob(
+        [JSON.stringify(data, null, 2)],
+        { type: "application/json" }
+    );
 
-    // 2. Aus JSON Datei (GitHub Pages)
-    fetch('mapData.json')
-        .then(res => res.json())
-        .then(data => loadFromData(data))
-        .catch(err => console.log("Keine mapData.json gefunden:", err));
-}
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "mapData.json";
+    a.click();
 
-function loadFromData(saved) {
-    // Polygone
-    if (saved.areas) saved.areas.forEach(item => {
-        const layer = L.geoJSON(item.geo, {
-            style: { color: getColor(item.status), fillOpacity: 0.5 }
-        }).getLayers()[0];
-        layer.status = item.status;
-        builtLayer.addLayer(layer);
+    alert("mapData.json heruntergeladen.\nJetzt im GitHub-Repo ersetzen & committen.");
+};
+
+// ===========================
+// Daten sammeln
+// ===========================
+function collectData() {
+    const data = { areas: [], markers: [] };
+
+    builtLayer.eachLayer(l => {
+        data.areas.push({
+            geo: l.toGeoJSON(),
+            status: l.status
+        });
     });
 
-    // Marker
-    if (saved.markers) saved.markers.forEach(item => {
-        const layer = L.geoJSON(item.geo).getLayers()[0];
-        markerLayer.addLayer(layer);
+    markerLayer.eachLayer(l => {
+        data.markers.push({ geo: l.toGeoJSON() });
+    });
+
+    return data;
+}
+
+// ===========================
+// Laden
+// ===========================
+function loadAll() {
+    const local = JSON.parse(localStorage.getItem("mapData"));
+    if (local) loadFrom(local);
+
+    fetch("mapData.json")
+        .then(r => r.json())
+        .then(loadFrom)
+        .catch(() => {});
+}
+
+function loadFrom(data) {
+    if (data.areas) data.areas.forEach(a => {
+        const l = L.geoJSON(a.geo, {
+            style: { color: getColor(a.status), fillOpacity: 0.5 }
+        }).getLayers()[0];
+        l.status = a.status;
+        builtLayer.addLayer(l);
+    });
+
+    if (data.markers) data.markers.forEach(m => {
+        const l = L.geoJSON(m.geo).getLayers()[0];
+        markerLayer.addLayer(l);
     });
 
     updateProgress();
 }
 
-loadData();
+loadAll();
