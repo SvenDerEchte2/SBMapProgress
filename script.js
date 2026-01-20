@@ -1,12 +1,12 @@
-// ===========================
+// =====================
 // Konfiguration
-// ===========================
+// =====================
 const ADMIN_PASSWORT = "meinpasswort";
 let isAdmin = false;
 
-// ===========================
+// =====================
 // Karte
-// ===========================
+// =====================
 const map = L.map('map').setView([47.8846, 7.7323], 14);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -16,7 +16,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const builtLayer = new L.FeatureGroup().addTo(map);
 const markerLayer = new L.FeatureGroup().addTo(map);
 
-// Beispiel-Gesamtfläche
+// Gesamtfläche (Beispiel)
 const totalArea = turf.polygon([[
     [7.72, 47.88],
     [7.74, 47.88],
@@ -25,26 +25,26 @@ const totalArea = turf.polygon([[
     [7.72, 47.88]
 ]]);
 
-// ===========================
+// =====================
 // Admin Login
-// ===========================
+// =====================
 document.getElementById("adminButton").onclick = () => {
     const pw = prompt("Admin Passwort:");
     if (pw === ADMIN_PASSWORT) {
         isAdmin = true;
-        alert("Admin aktiviert");
         document.getElementById("syncButton").style.display = "inline";
         enableDraw();
+        alert("Admin aktiviert");
     } else {
         alert("Falsches Passwort");
     }
 };
 
-// ===========================
+// =====================
 // Draw Tools
-// ===========================
+// =====================
 function enableDraw() {
-    const draw = new L.Control.Draw({
+    map.addControl(new L.Control.Draw({
         edit: { featureGroup: builtLayer },
         draw: {
             polygon: true,
@@ -53,47 +53,70 @@ function enableDraw() {
             polyline: false,
             circle: false
         }
-    });
-    map.addControl(draw);
+    }));
 }
 
-// ===========================
+// =====================
 // Farben
-// ===========================
+// =====================
 function getColor(status) {
     if (status === "fertig") return "green";
     if (status === "bau") return "orange";
     return "red";
 }
 
-// ===========================
+// =====================
 // Zeichnen
-// ===========================
+// =====================
 map.on(L.Draw.Event.CREATED, e => {
     if (!isAdmin) return;
 
     const layer = e.layer;
 
+    // MARKER (geplante Orte)
     if (e.layerType === "marker") {
         const name = prompt("Name des geplanten Ortes?");
-        layer.bindPopup("🟥 Geplant: " + name);
+        const priority = prompt("Priorität (hoch / mittel / niedrig)", "mittel");
+
+        layer.data = { name, priority };
+        layer.bindPopup(`🟥 ${name}<br>Priorität: ${priority}`);
+
         markerLayer.addLayer(layer);
         saveLocal();
+        updateUI();
         return;
     }
 
+    // POLYGON (Gebiete)
+    const name = prompt("Name des Gebiets?");
     const status = prompt("Status: fertig / bau / geplant", "fertig");
-    layer.status = status;
-    layer.setStyle({ color: getColor(status), fillOpacity: 0.5 });
-    builtLayer.addLayer(layer);
+    const note = prompt("Notiz (optional):", "");
 
+    layer.data = { name, status, note };
+    layer.status = status;
+
+    layer.setStyle({ color: getColor(status), fillOpacity: 0.5 });
+    layer.bindPopup(`
+        <b>${name}</b><br>
+        Status: ${status}<br>
+        ${note}
+    `);
+
+    builtLayer.addLayer(layer);
     saveLocal();
-    updateProgress();
+    updateUI();
 });
 
-// ===========================
+// =====================
+// UI Updates
+// =====================
+function updateUI() {
+    updateProgress();
+    updateStats();
+    updateNextList();
+}
+
 // Fortschritt
-// ===========================
 function updateProgress() {
     let area = 0;
     builtLayer.eachLayer(l => {
@@ -101,91 +124,127 @@ function updateProgress() {
             area += turf.area(l.toGeoJSON());
         }
     });
-    const percent = ((area / turf.area(totalArea)) * 100).toFixed(2);
-    document.getElementById("progress").innerText = percent + " % umgesetzt";
+
+    document.getElementById("progress").innerText =
+        ((area / turf.area(totalArea)) * 100).toFixed(2) + " % umgesetzt";
 }
 
-// ===========================
+// Statistik
+function updateStats() {
+    let fertig = 0, bau = 0, geplant = 0;
+
+    builtLayer.eachLayer(l => {
+        if (l.status === "fertig") fertig++;
+        else if (l.status === "bau") bau++;
+        else geplant++;
+    });
+
+    document.getElementById("stat-fertig").innerText = fertig;
+    document.getElementById("stat-bau").innerText = bau;
+    document.getElementById("stat-geplant").innerText = geplant;
+    document.getElementById("stat-marker").innerText = markerLayer.getLayers().length;
+}
+
+// 🔟 Was kommt als Nächstes?
+function updateNextList() {
+    const list = document.getElementById("nextList");
+    list.innerHTML = "";
+
+    markerLayer.eachLayer(m => {
+        const li = document.createElement("li");
+        li.innerText = `${m.data.name} (${m.data.priority})`;
+        list.appendChild(li);
+    });
+}
+
+// =====================
 // Marker Toggle
-// ===========================
+// =====================
 document.getElementById("toggleMarkers").onchange = e => {
     e.target.checked ? map.addLayer(markerLayer) : map.removeLayer(markerLayer);
 };
 
-// ===========================
+// =====================
 // LocalStorage
-// ===========================
+// =====================
 function saveLocal() {
-    const data = collectData();
-    localStorage.setItem("mapData", JSON.stringify(data));
+    localStorage.setItem("mapData", JSON.stringify(collectData()));
 }
 
-// ===========================
-// 🔄 SYNC BUTTON (EXPORT)
-// ===========================
+// =====================
+// Sync (Export JSON)
+// =====================
 document.getElementById("syncButton").onclick = () => {
     const data = collectData();
-    const blob = new Blob(
-        [JSON.stringify(data, null, 2)],
-        { type: "application/json" }
-    );
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json"
+    });
 
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "mapData.json";
     a.click();
 
-    alert("mapData.json heruntergeladen.\nJetzt im GitHub-Repo ersetzen & committen.");
+    alert("mapData.json heruntergeladen → im GitHub-Repo ersetzen & committen");
 };
 
-// ===========================
+// =====================
 // Daten sammeln
-// ===========================
+// =====================
 function collectData() {
     const data = { areas: [], markers: [] };
 
     builtLayer.eachLayer(l => {
         data.areas.push({
             geo: l.toGeoJSON(),
-            status: l.status
+            status: l.status,
+            data: l.data
         });
     });
 
     markerLayer.eachLayer(l => {
-        data.markers.push({ geo: l.toGeoJSON() });
+        data.markers.push({
+            geo: l.toGeoJSON(),
+            data: l.data
+        });
     });
 
     return data;
 }
 
-// ===========================
+// =====================
 // Laden
-// ===========================
-function loadAll() {
-    const local = JSON.parse(localStorage.getItem("mapData"));
-    if (local) loadFrom(local);
-
-    fetch("mapData.json")
-        .then(r => r.json())
-        .then(loadFrom)
-        .catch(() => {});
-}
-
+// =====================
 function loadFrom(data) {
     if (data.areas) data.areas.forEach(a => {
         const l = L.geoJSON(a.geo, {
             style: { color: getColor(a.status), fillOpacity: 0.5 }
         }).getLayers()[0];
         l.status = a.status;
+        l.data = a.data;
+        l.bindPopup(`
+            <b>${a.data.name}</b><br>
+            Status: ${a.status}<br>
+            ${a.data.note || ""}
+        `);
         builtLayer.addLayer(l);
     });
 
     if (data.markers) data.markers.forEach(m => {
         const l = L.geoJSON(m.geo).getLayers()[0];
+        l.data = m.data;
+        l.bindPopup(`🟥 ${m.data.name}<br>Priorität: ${m.data.priority}`);
         markerLayer.addLayer(l);
     });
 
-    updateProgress();
+    updateUI();
 }
 
-loadAll();
+// Local + GitHub laden
+const local = JSON.parse(localStorage.getItem("mapData"));
+if (local) loadFrom(local);
+
+fetch("mapData.json")
+    .then(r => r.json())
+    .then(loadFrom)
+    .catch(() => {});
