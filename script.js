@@ -73,21 +73,20 @@ map.on(L.Draw.Event.CREATED, e => {
 
     const layer = e.layer;
 
-    // MARKER (geplante Orte)
+    // MARKER
     if (e.layerType === "marker") {
         const name = prompt("Name des geplanten Ortes?");
         const priority = prompt("Priorität (hoch / mittel / niedrig)", "mittel");
 
         layer.data = { name, priority };
         layer.bindPopup(`🟥 ${name}<br>Priorität: ${priority}`);
-
         markerLayer.addLayer(layer);
         saveLocal();
         updateUI();
         return;
     }
 
-    // POLYGON (Gebiete)
+    // POLYGON
     const name = prompt("Name des Gebiets?");
     const status = prompt("Status: fertig / bau / geplant", "fertig");
     const note = prompt("Notiz (optional):", "");
@@ -145,11 +144,10 @@ function updateStats() {
     document.getElementById("stat-marker").innerText = markerLayer.getLayers().length;
 }
 
-// 🔟 Was kommt als Nächstes?
+// Nächste Marker
 function updateNextList() {
     const list = document.getElementById("nextList");
     list.innerHTML = "";
-
     markerLayer.eachLayer(m => {
         const li = document.createElement("li");
         li.innerText = `${m.data.name} (${m.data.priority})`;
@@ -216,14 +214,15 @@ function collectData() {
 // Laden
 // =====================
 function loadFrom(data) {
+    builtLayer.clearLayers();
+    markerLayer.clearLayers();
+
     if (data.areas) data.areas.forEach(a => {
-         const l = L.geoJSON(a.geo, {
+        const l = L.geoJSON(a.geo, {
             style: { color: getColor(a.status), fillOpacity: 0.5 }
         }).getLayers()[0];
 
         l.status = a.status;
-
-        // 🔒 fallback if data is missing
         l.data = a.data || { name: "Unbenannt", note: "" };
 
         l.bindPopup(`
@@ -234,6 +233,7 @@ function loadFrom(data) {
 
         builtLayer.addLayer(l);
     });
+
     if (data.markers) data.markers.forEach(m => {
         const l = L.geoJSON(m.geo).getLayers()[0];
         l.data = m.data;
@@ -244,12 +244,24 @@ function loadFrom(data) {
     updateUI();
 }
 
-// Local + GitHub laden
-const local = JSON.parse(localStorage.getItem("mapData"));
-if (local) loadFrom(local);
+// =====================
+// INITIAL LOAD (GitHub → LocalStorage)
+// =====================
+(function init() {
+    const local = localStorage.getItem("mapData");
 
-fetch("mapData.json")
-    .then(r => r.json())
-    .then(loadFrom)
-    .catch(() => {});
+    if (local) {
+        console.log("Loaded from localStorage");
+        loadFrom(JSON.parse(local));
+        return;
+    }
 
+    console.log("Loaded from GitHub mapData.json");
+    fetch("./mapData.json")
+        .then(r => r.json())
+        .then(data => {
+            loadFrom(data);
+            localStorage.setItem("mapData", JSON.stringify(data));
+        })
+        .catch(err => console.error("Load failed", err));
+})();
