@@ -217,19 +217,23 @@ function collectData() {
 // =====================
 function loadFrom(data) {
     if (data.areas) data.areas.forEach(a => {
-        const l = L.geoJSON(a.geo, {
+         const l = L.geoJSON(a.geo, {
             style: { color: getColor(a.status), fillOpacity: 0.5 }
         }).getLayers()[0];
+
         l.status = a.status;
-        l.data = a.data;
+
+        // 🔒 fallback if data is missing
+        l.data = a.data || { name: "Unbenannt", note: "" };
+
         l.bindPopup(`
-            <b>${a.data.name}</b><br>
+            <b>${l.data.name}</b><br>
             Status: ${a.status}<br>
-            ${a.data.note || ""}
+            ${l.data.note || ""}
         `);
+
         builtLayer.addLayer(l);
     });
-
     if (data.markers) data.markers.forEach(m => {
         const l = L.geoJSON(m.geo).getLayers()[0];
         l.data = m.data;
@@ -248,3 +252,4 @@ fetch("mapData.json")
     .then(r => r.json())
     .then(loadFrom)
     .catch(() => {});
+
